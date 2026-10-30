@@ -1,0 +1,26 @@
+[Unit]
+Description=Moonveil werewolf game
+After=network.target
+
+[Service]
+Type=simple
+User=moonveil-games
+Group=moonveil-games
+WorkingDirectory=/opt/games/current
+EnvironmentFile=/etc/games/environment
+ExecStart=/usr/bin/node --max-old-space-size=128 /opt/games/current/server/index.js
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/games
+MemoryMax=256M
+TasksMax=64
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
