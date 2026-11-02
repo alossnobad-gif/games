@@ -1,3 +1,5 @@
+import { randomUUID, createHash } from 'node:crypto';
+import { settle, leaderboard } from './ranking.js';
 import http from 'node:http';
 import { readFileSync, writeFileSync, mkdirSync, renameSync, existsSync, statSync, createReadStream } from 'node:fs';
 import path from 'node:path';
@@ -34,7 +36,12 @@ const server=http.createServer(async(req,res)=>{
         const match=url.pathname.match(/^\/api\/rooms\/(\d{6})\/(join|command)$/);
         if(!match)return reply(res,404,{error:'接口不存在'});
         const r=rooms[match[1]];if(!r)return reply(res,404,{error:'房间不存在'});
-        if(match[2]==='join'){const p=addPlayer(r,b.name);save();return reply(res,200,{id:r.id,token:p.token,seat:p.id});}
+        if(match[2]==='join'){
+          const profileToken=typeof b.profileToken==='string'&&/^[0-9a-f-]{36}$/i.test(b.profileToken)?b.profileToken:randomUUID();
+          const profileId=createHash('sha256').update(profileToken).digest('hex');
+          if(r.players.some(p=>p.profileId===profileId))return reply(res,409,{error:'此玩家档案已在本房间入座，请使用原来的房间凭证'});
+          const p=addPlayer(r,b.name);p.profileId=profileId;save();return reply(res,200,{id:r.id,token:p.token,seat:p.id,profileToken});
+        }
         const judge=token===r.judge,player=r.players.find(p=>p.token===token);
         if(!judge&&!player)return reply(res,403,{error:'凭证无效'});
         // Transactional command: failed actions never leave partial mutations.
@@ -43,11 +50,12 @@ const server=http.createServer(async(req,res)=>{
         else if(!judge)return reply(res,403,{error:'仅法官可执行此操作'});
         else if(b.command==='start')start(next);
         else if(b.command==='next')advance(next);
-        else if(b.command==='fill')fillDemo(next);
+        else if(b.command==='fill'){fillDemo(next);next.unranked=true;}
         else return reply(res,400,{error:'未知操作'});
-        rooms[r.id]=next;save();return reply(res,200,{ok:true});
+        settle(next);rooms[r.id]=next;save();return reply(res,200,{ok:true});
       }
       if(req.method==='GET'){
+        if(url.pathname==='/api/leaderboard')return reply(res,200,leaderboard(rooms));
         const m=url.pathname.match(/^\/api\/rooms\/(\d{6})$/);if(!m||!rooms[m[1]])return reply(res,404,{error:'房间不存在'});
         return reply(res,200,view(rooms[m[1]],token,url.searchParams.get('preview')));
       }

@@ -27,6 +27,7 @@ export function start(r) {
   if(r.phase!=='lobby') fail('对局已开始');
   if(r.players.length!==12) fail('需要 12 名玩家全部入座');
   const roles=shuffle([...ROLES]);r.players.forEach((p,i)=>p.role=roles[i]);r.day=1;r.phase='wolf';r.actions={};r.night={};
+  r.scoringVersion=1;r.performance={};
   log(r,'身份已分配，请玩家在自己的手机上查看');log(r,'第 1 夜降临，狼人请睁眼');
 }
 export function eligible(r,p) {
@@ -41,6 +42,7 @@ export function getKnife(r) {
   const sorted=Object.entries(counts).sort((a,b)=>b[1]-a[1]);
   return sorted.length&&(!sorted[1]||sorted[0][1]>sorted[1][1])?Number(sorted[0][0]):null;
 }
+function credit(r,id,value) {if(r.scoringVersion===1)r.performance[id]=(r.performance[id]||0)+value;}
 export function action(r,actorId,target,kind='target') {
   const actor=r.players.find(p=>p.id===Number(actorId));
   if(!eligible(r,actor)) fail('当前不能由该玩家行动');
@@ -51,6 +53,7 @@ export function action(r,actorId,target,kind='target') {
   if(r.phase==='seer') {
     if(!p||p.id===actor.id) fail('请选择其他存活玩家');
     (r.checks[actor.id]??=[]).push({day:r.day,target:id,wolf:p.role==='wolf'});
+    if(p.role==='wolf'&&!(r.checks[actor.id]||[]).slice(0,-1).some(c=>c.target===id))credit(r,actor.id,1);
     log(r,`预言家查验 ${id} 号：${p.role==='wolf'?'狼人':'好人'}`,true);
   }
   if(r.phase==='witch') {
@@ -58,16 +61,17 @@ export function action(r,actorId,target,kind='target') {
     if(kind==='save') {
       if(!r.potions.save||!r.night.knife) fail('当前无法使用解药');
       if(r.night.knife===actor.id&&r.day>1) fail('女巫仅首夜可自救');
-      r.potions.save=false;r.night.saved=true;
+      r.potions.save=false;r.night.saved=true;credit(r,actor.id,1);
     }
-    if(kind==='poison') {if(!r.potions.poison||!p) fail('请选择毒药目标');r.potions.poison=false;r.night.poison=id;}
+    if(kind==='poison') {if(!r.potions.poison||!p) fail('请选择毒药目标');r.potions.poison=false;r.night.poison=id;credit(r,actor.id,p.role==='wolf'?2:-2);}
     log(r,`女巫${kind==='save'?'使用解药':kind==='poison'?`毒杀 ${id} 号`:'选择不用药'}`,true);
   }
   if(r.phase==='hunter') {
-    if(p){p.alive=false;log(r,`猎人开枪带走 ${id} 号 · ${p.name}`);}else log(r,'猎人放弃开枪');
+    if(p){credit(r,actor.id,p.role==='wolf'?2:-2);p.alive=false;log(r,`猎人开枪带走 ${id} 号 · ${p.name}`);}else log(r,'猎人放弃开枪');
     r.shooter=null;r.phase=r.resume;checkWinner(r);return;
   }
   (r.actions[r.phase]??={})[actor.id]=r.phase==='witch'?kind:id;
+  if(r.phase==='vote'&&actor.role!=='wolf'&&p?.role==='wolf')credit(r,actor.id,1);
   if(r.phase==='vote') log(r,`${actor.id} 号已完成投票`);
 }
 function checkWinner(r) {
@@ -112,7 +116,7 @@ export function view(r,token,previewId=null) {
   const judge=token===r.judge,me=judge&&previewId?r.players.find(p=>p.id===Number(previewId)):r.players.find(p=>p.token===token);
   if(!judge&&!me) fail('房间凭证无效，请重新加入');
   const isJudge=judge&&!previewId,finished=r.phase==='end';
-  const result={id:r.id,demo:r.demo,phase:r.phase,phaseLabel:PHASES[r.phase],day:r.day,winner:r.winner,isJudge,me:me?.id||null,
+  const result={id:r.id,demo:r.demo,phase:r.phase,phaseLabel:PHASES[r.phase],day:r.day,winner:r.winner,ranking:finished?r.result||null:null,isJudge,me:me?.id||null,
     players:r.players.map(p=>({id:p.id,name:p.name,alive:p.alive,revealed:p.revealed,role:isJudge||finished||p.id===me?.id||(me?.role==='wolf'&&p.role==='wolf')||p.revealed?p.role:null,acted:(isJudge||r.phase==='vote'||p.id===me?.id)&&r.actions[r.phase]?.[p.id]!==undefined})),
     logs:r.logs.filter(l=>isJudge||!l.private),eligible:r.players.filter(p=>(isJudge||p.id===me?.id)&&eligible(r,p)).map(p=>p.id),shooter:r.shooter||null};
   if(isJudge||me?.role==='witch'){result.potions=r.potions;result.knife=r.phase==='witch'&&r.potions.save?r.night.knife:null;}
