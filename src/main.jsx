@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Moon, Sun, Gavel, Check, Copy, Users, Eye, EyeOff, Plus, ArrowRight, X, Shield, ScrollText, Volume2, CircleHelp, LogOut, Crown, RefreshCw } from 'lucide-react';
 import './style.css';
+import Ranking from './Ranking.jsx';
 
 const ROLE={wolf:'狼人',seer:'预言家',witch:'女巫',hunter:'猎人',idiot:'白痴',villager:'平民'};
 const ROLE_DESC={wolf:'藏身于人群之中，与同伴一起，等待黑夜降临。每晚共同选择一名袭击目标。',seer:'穿透迷雾，寻找真相。每晚查验一名玩家，得知对方是否属于狼人阵营。',witch:'一瓶解药，一瓶毒药。每晚最多使用一瓶，解药仅在首夜可以自救。',hunter:'最后一声枪响，也能改变命运。出局后可带走一名玩家，被毒杀时不能开枪。',idiot:'看似糊涂，却有自己的生存之道。首次被放逐时翻牌存活，此后失去投票权。',villager:'没有特殊技能，但你的观察与每一票，都是照亮黑夜的力量。'};
@@ -64,11 +65,6 @@ function App(){
   {modal==='join'&&<Modal title="加入月隐镇" onClose={()=>setModal(null)}><form onSubmit={join}><label className="field">六位房间号<input inputMode="numeric" pattern="[0-9]{6}" maxLength={6} required value={joinCode} onChange={e=>setJoinCode(e.target.value.replace(/\D/g,''))} placeholder="输入六位房间号"/></label><label className="field">你的昵称<input required maxLength={12} value={name} onChange={e=>setName(e.target.value)} placeholder="大家怎么称呼你？" autoComplete="nickname"/></label><p className="muted small">座位按加入顺序分配。请在同一浏览器内保留你的身份。</p>{error&&<p className="red" role="alert">{error}</p>}<button className="gold wide" disabled={busy}>入座 <ArrowRight size={17}/></button></form></Modal>}
   {modal==='invite'&&<Modal title="邀请朋友入座" onClose={()=>setModal(null)}><p>将以下链接发送给玩家。链接不含法官凭证。</p><input className="invite-input" readOnly value={location.origin+location.pathname+'?room='+room?.id} onFocus={e=>e.target.select()}/></Modal>}
   </>;
-}
-function Ranking({onClose}) {
-  const [data,setData]=useState(null),[error,setError]=useState(''),[revision,setRevision]=useState(0);
-  useEffect(()=>{let cancelled=false;setError('');api('/leaderboard').then(d=>{if(!cancelled)setData(d);}).catch(e=>{if(!cancelled)setError(e.message);});return()=>{cancelled=true;};},[revision]);
-  return <Modal title="小镇荣誉榜" onClose={onClose}><p className="muted">跨房间累计 · 仅统计新版本真实完整对局 · {data?.games??0} 局已结算</p><button className="outline" onClick={()=>setRevision(v=>v+1)}>刷新榜单</button>{error&&<p role="alert" className="red">{error}</p>}{!data&&!error&&<p role="status">正在读取排行榜…</p>}{data&&<><div className="ranking-table"><table><caption>积分排行榜</caption><thead><tr><th>名次</th><th>玩家 / 档案</th><th>积分</th><th>胜 / 局</th><th>胜率</th></tr></thead><tbody>{data.rows.map(p=><tr key={p.id}><td>{p.rank}</td><td>{p.name}<small>#{p.id}</small></td><td><strong>{p.points}</strong></td><td>{p.wins} / {p.games}</td><td>{Math.round(p.wins/p.games*100)}%</td></tr>)}</tbody></table>{!data.rows.length&&<p className="muted">还没有计分对局，邀请 12 位玩家完成真实对局后上榜。</p>}</div><h3>单项荣誉</h3><div className="award-grid">{data.awards.map(a=><article key={a.role}><Crown size={22}/><h3>{a.title}</h3>{a.winners.length?a.winners.map(p=><p key={p.id}>{p.name} <small>#{p.id} · {p.wins} 胜 / {p.games} 局</small></p>):<p className="muted">虚位以待</p>}</article>)}</div></>}<details className="ranking-rules"><summary>积分、排名与评奖规则</summary><p>每局参赛 3 分，阵营获胜 +7 分，无存活奖励。表现分合计限制在 −3 至 +3 分；胜者 7–13 分，败者 0–6 分。</p><p>好人每次投中狼人 +1；预言家首次查中每位狼人 +1（重复查验不加分）；女巫成功使用解药 +1，毒中狼人 +2、毒中好人 −2；猎人带走狼人 +2、好人 −2。狼人不设刀人奖励，依靠团队胜利得分；弃票、空刀、放弃技能不加减分。法官代操作按同一规则计算。</p><p>总榜按积分、胜率、胜场排序，完全相同并列。角色奖要求该角色至少 3 局且至少 1 胜，按角色胜场、角色胜率排序，同分并列。荣誉独立于总榜，不额外加分。</p><p>同一浏览器自动保留独立档案，跨房间累计；同名不合并。清除浏览器数据或换设备会建立新档案，暂不支持找回。昵称取该档案首个计分记录。同一档案每房间限一个座位。演示、补演示玩家、未结束和缺少行动数据的旧局不计分。榜单仅展示公开昵称与已结束对局统计，不公布正在进行的身份。</p></details></Modal>;
 }
 function ActionPanel({room,isJudge,current,pending,canAct,actor,setActor,target,setTarget,kind,setKind,busy,command,invite}){
   const phase=room.phase,active=['wolf','seer','witch','vote','hunter'].includes(phase),waiting=active&&!room.eligible.length;
