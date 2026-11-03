@@ -44,9 +44,11 @@ function MobileRanking({data}) {
   </section></>;
 }
 
-export default function Ranking({onClose}) {
+export default function Ranking({onClose,roomId,token}) {
   const dialog = useRef(null);
-  const [data,setData] = useState(null);
+  const [snapshot,setData] = useState(null);
+  const [scope,setScope] = useState('all');
+  const data = snapshot?.scope === scope ? snapshot : null;
   const [error,setError] = useState('');
   const [loading,setLoading] = useState(true);
   const [revision,setRevision] = useState(0);
@@ -66,18 +68,19 @@ export default function Ranking({onClose}) {
     setLoading(true); setError('');
     async function load() {
       try {
-        const response = await fetch('/api/leaderboard',{signal:controller.signal});
+        const response = await fetch(scope === 'room' ? `/api/leaderboard?room=${encodeURIComponent(roomId)}` : '/api/leaderboard',{signal:controller.signal,headers:scope === 'room' ? {'X-Moonveil-Token':token} : {}});
         const next = await response.json();
         if (!response.ok) throw new Error(next.error || '排行榜读取失败');
-        setData(next);
+        if(!controller.signal.aborted)setData({...next,scope});
       } catch (e) { if (!controller.signal.aborted) setError(e.message); }
       finally { if (!controller.signal.aborted) setLoading(false); }
     }
     load();
     return () => controller.abort();
-  },[revision]);
+  },[revision,scope,roomId,token]);
   return <dialog className={`ranking-dialog ${mobile ? 'ranking-mobile' : 'ranking-desktop'}`} ref={dialog} aria-labelledby="ranking-title" onCancel={onClose} onClick={event => { if (event.target === event.currentTarget) onClose(); }}>
-    <header className="rank-header"><div className="rank-title-row">{mobile && <button className="icon-button rank-back" aria-label="返回游戏" onClick={onClose}><ArrowLeft size={22}/></button>}<h2 id="ranking-title">小镇荣誉榜</h2>{!mobile && <button className="icon-button" aria-label="关闭排行榜" onClick={onClose}><X size={22}/></button>}</div><div className="rank-toolbar"><p>跨房间累计 <span>·</span> {data ? `${data.games} 局已结算` : '仅统计真实完整对局'}</p><button className="outline rank-refresh" disabled={loading} onClick={() => setRevision(value => value + 1)}><RefreshCw size={15} className={loading ? 'rank-spinning' : ''}/>{loading ? '读取中' : '刷新榜单'}</button></div></header>
+    <header className="rank-header"><div className="rank-title-row">{mobile && <button className="icon-button rank-back" aria-label="返回游戏" onClick={onClose}><ArrowLeft size={22}/></button>}<h2 id="ranking-title">小镇荣誉榜</h2>{!mobile && <button className="icon-button" aria-label="关闭排行榜" onClick={onClose}><X size={22}/></button>}</div><div className="rank-toolbar"><p>{scope === 'room' ? `房间 ${roomId} · 历次对局累计` : '所有房间 · 历史累计'} <span>·</span> {data ? `${data.games} 局已结算` : '仅统计真实完整对局'}</p><button className="outline rank-refresh" disabled={loading} onClick={() => setRevision(value => value + 1)}><RefreshCw size={15} className={loading ? 'rank-spinning' : ''}/>{loading ? '读取中' : '刷新榜单'}</button></div></header>
+    <div className="rank-scope" role="group" aria-label="排名范围"><button aria-pressed={scope === 'all'} onClick={() => setScope('all')}>历史总榜</button><button aria-pressed={scope === 'room'} disabled={!roomId || !token} onClick={() => setScope('room')}>本房间榜</button><span>{scope === 'room' ? '只累计本房间内已结算的真实对局' : '累计所有房间内已结算的真实对局'}</span></div>
     <div className="rank-content" aria-busy={loading}>
       {error && <div className="rank-error" role="alert"><span>{data ? '刷新失败，正在显示上次的榜单。' : '暂时无法读取排行榜。'}{error}</span><button className="text-button" onClick={() => setRevision(value => value + 1)} disabled={loading}>重试</button></div>}
       {!data && loading && <p className="rank-loading" role="status">正在读取排行榜…</p>}
@@ -88,5 +91,5 @@ export default function Ranking({onClose}) {
 }
 
 function RankingRules() {
-  return <details className="ranking-rules"><summary>积分、排名与评奖规则</summary><p>每局参赛 3 分，阵营获胜 +7 分，无存活奖励。表现分合计限制在 −3 至 +3 分；胜者 7–13 分，败者 0–6 分。</p><p>好人每次投中狼人 +1；预言家首次查中每位狼人 +1（重复查验不加分）；女巫成功使用解药 +1，毒中狼人 +2、毒中好人 −2；猎人带走狼人 +2、好人 −2。狼人不设刀人奖励，依靠团队胜利得分；弃票、空刀、放弃技能不加减分。法官代操作按同一规则计算。</p><p>总榜按积分、胜率、胜场排序，完全相同并列。角色奖要求该角色至少 3 局且至少 1 胜，按角色胜场、角色胜率排序，同分并列。荣誉独立于总榜，不额外加分。</p><p>同一浏览器自动保留独立档案，跨房间累计；同名不合并。清除浏览器数据或换设备会建立新档案，暂不支持找回。昵称取该档案首个计分记录。同一档案每房间限一个座位。演示、补演示玩家、未结束和缺少行动数据的旧局不计分。榜单仅展示公开昵称与已结束对局统计，不公布正在进行的身份。</p></details>;
+  return <details className="ranking-rules"><summary>积分、排名与评奖规则</summary><p>历史总榜累计所有房间的已结算对局；本房间榜只累计当前房间的已结算对局。同房间可以连续进行多局，两种榜单均保留此前积分；进行中的对局不计入。</p><p>每局参赛 3 分，阵营获胜 +7 分，无存活奖励。表现分合计限制在 −3 至 +3 分；胜者 7–13 分，败者 0–6 分。</p><p>好人每次投中狼人 +1；预言家首次查中每位狼人 +1（重复查验不加分）；女巫成功使用解药 +1，毒中狼人 +2、毒中好人 −2；猎人带走狼人 +2、好人 −2。狼人不设刀人奖励，依靠团队胜利得分；弃票、空刀、放弃技能不加减分。法官代操作按同一规则计算。</p><p>总榜按积分、胜率、胜场排序，完全相同并列。角色奖要求该角色至少 3 局且至少 1 胜，按角色胜场、角色胜率排序，同分并列。荣誉独立于总榜，不额外加分。</p><p>同一浏览器自动保留独立档案，跨房间累计；同名不合并。清除浏览器数据或换设备会建立新档案，暂不支持找回。昵称取该档案首个计分记录。同一档案每房间限一个座位。演示、补演示玩家、未结束和缺少行动数据的旧局不计分。榜单仅展示公开昵称与已结束对局统计，不公布正在进行的身份。</p></details>;
 }

@@ -385,3 +385,10 @@ dialog.ranking-desktop {
   animation:none}
 }
 
+
+.rank-scope { display:flex; align-items:center; gap:8px; padding:16px 36px; border-bottom:1px solid var(--line); flex-shrink:0; }
+.rank-scope button { background:transparent; border:1px solid var(--line); border-radius:6px; padding:10px 18px; min-height:42px; color:#aab5c4; font-size:13px; }
+.rank-scope button[aria-pressed=true] { color:#efd5a6; background:#d8b77915; border-color:#aa8b56; }
+.rank-scope>span { margin-left:12px; font-size:12px; color:#9ba8ba; }
+@media (min-width:768px) and (max-width:1100px) { .rank-scope { padding:14px 24px; } }
+@media (max-width:767px) { .rank-scope { padding:14px 20px; flex-wrap:wrap; } .rank-scope button { flex:1; } .rank-scope>span { margin:4px 0 0; flex-basis:100%; font-size:11px; } }

@@ -4,7 +4,7 @@ import http from 'node:http';
 import { readFileSync, writeFileSync, mkdirSync, renameSync, existsSync, statSync, createReadStream } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createRoom, addPlayer, fillDemo, start, advance, action, view } from './game.js';
+import { createRoom, addPlayer, fillDemo, start, nextRound, advance, action, view } from './game.js';
 
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../dist');
 const versionFile=path.resolve(root,'../RELEASE_SHA');
@@ -45,17 +45,28 @@ const server=http.createServer(async(req,res)=>{
         const judge=token===r.judge,player=r.players.find(p=>p.token===token);
         if(!judge&&!player)return reply(res,403,{error:'凭证无效'});
         // Transactional command: failed actions never leave partial mutations.
+        if(b.round!==undefined&&b.round!==(r.round||1))return reply(res,409,{error:'对局已更新，请等待页面同步后再操作'});
         const next=structuredClone(r);
         if(b.command==='action')action(next,judge?b.actor:player.id,b.target,b.kind);
         else if(!judge)return reply(res,403,{error:'仅法官可执行此操作'});
         else if(b.command==='start')start(next);
         else if(b.command==='next')advance(next);
+        else if(b.command==='rematch'){settle(next);nextRound(next);}
         else if(b.command==='fill'){fillDemo(next);next.unranked=true;}
         else return reply(res,400,{error:'未知操作'});
         settle(next);rooms[r.id]=next;save();return reply(res,200,{ok:true});
       }
       if(req.method==='GET'){
-        if(url.pathname==='/api/leaderboard')return reply(res,200,leaderboard(rooms));
+        if(url.pathname==='/api/leaderboard'){
+          const roomId=url.searchParams.get('room');
+          if(roomId!==null){
+            const room=rooms[roomId];
+            if(!room)return reply(res,404,{error:'房间不存在'});
+            if(token!==room.judge&&!room.players.some(p=>p.token===token))return reply(res,403,{error:'请使用本房间凭证查看房间榜'});
+            return reply(res,200,leaderboard({[roomId]:room}));
+          }
+          return reply(res,200,leaderboard(rooms));
+        }
         const m=url.pathname.match(/^\/api\/rooms\/(\d{6})$/);if(!m||!rooms[m[1]])return reply(res,404,{error:'房间不存在'});
         return reply(res,200,view(rooms[m[1]],token,url.searchParams.get('preview')));
       }

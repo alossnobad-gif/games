@@ -11,12 +11,14 @@ export function settle(room){
 export function leaderboard(rooms){
   const totals=new Map();let games=0;
   for(const room of Object.values(rooms)){
-    if(!room.result?.counted)continue;games++;
-    for(const p of room.result.players){
-      let row=totals.get(p.profileId);
-      if(!row){row={id:p.profileId.slice(0,12),name:p.name,points:0,games:0,wins:0,roles:{}};totals.set(p.profileId,row);}
-      row.points+=p.points;row.games++;row.wins+=Number(p.won);
-      const role=row.roles[p.role]??={games:0,wins:0};role.games++;role.wins+=Number(p.won);
+    for(const result of [...(room.history||[]), ...(room.result?[room.result]:[])]){
+      if(!result.counted)continue;games++;
+      for(const p of result.players){
+        let row=totals.get(p.profileId);
+        if(!row){row={id:p.profileId.slice(0,12),name:p.name,points:0,games:0,wins:0,roles:{}};totals.set(p.profileId,row);}
+        row.points+=p.points;row.games++;row.wins+=Number(p.won);
+        const role=row.roles[p.role]??={games:0,wins:0};role.games++;role.wins+=Number(p.won);
+      }
     }
   }
   const rows=[...totals.values()].sort((a,b)=>b.points-a.points||b.wins/b.games-a.wins/a.games||b.wins-a.wins||a.id.localeCompare(b.id));

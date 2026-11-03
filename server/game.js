@@ -6,7 +6,7 @@ export const PHASES = { lobby:'等待入座', wolf:'狼人行动', seer:'预言�
 const fail = message => { throw new Error(message); };
 export function log(r, text, privateLog = false) { r.logs.push({ id:randomUUID(), time:Date.now(), text, private:privateLog }); r.logs=r.logs.slice(-150); }
 export function createRoom(demo=false) {
-  const r={id:String(randomInt(100000,1000000)),judge:randomUUID(),demo,phase:'lobby',day:0,players:[],logs:[],actions:{},potions:{save:true,poison:true},checks:{},night:{},winner:null};
+  const r={id:String(randomInt(100000,1000000)),judge:randomUUID(),demo,round:1,phase:'lobby',day:0,players:[],logs:[],actions:{},potions:{save:true,poison:true},checks:{},night:{},winner:null};
   log(r,'房间已创建，等待玩家入座');
   if(demo) fillDemo(r);
   return r;
@@ -29,6 +29,21 @@ export function start(r) {
   const roles=shuffle([...ROLES]);r.players.forEach((p,i)=>p.role=roles[i]);r.day=1;r.phase='wolf';r.actions={};r.night={};
   r.scoringVersion=1;r.performance={};
   log(r,'身份已分配，请玩家在自己的手机上查看');log(r,'第 1 夜降临，狼人请睁眼');
+}
+// Archive only settled public scoring data; keep credentials and profiles on seats.
+export function nextRound(r) {
+  if(r.phase!=='end') fail('仅可在对局结束后准备下一局');
+  if(r.result) (r.history??=[]).push(structuredClone(r.result));
+  delete r.result;
+  delete r.scoringVersion;
+  delete r.shooter;
+  delete r.resume;
+  r.round=(r.round||1)+1;
+  r.phase='lobby';r.day=0;r.winner=null;r.logs=[];
+  r.actions={};r.night={};r.checks={};r.performance={};
+  r.potions={save:true,poison:true};
+  for(const p of r.players){p.role=null;p.alive=true;p.revealed=false;}
+  log(r,`第 ${r.round} 局准备中，座位已保留，等待法官重新分配身份`);
 }
 export function eligible(r,p) {
   if(!p) return false;
@@ -116,7 +131,7 @@ export function view(r,token,previewId=null) {
   const judge=token===r.judge,me=judge&&previewId?r.players.find(p=>p.id===Number(previewId)):r.players.find(p=>p.token===token);
   if(!judge&&!me) fail('房间凭证无效，请重新加入');
   const isJudge=judge&&!previewId,finished=r.phase==='end';
-  const result={id:r.id,demo:r.demo,phase:r.phase,phaseLabel:PHASES[r.phase],day:r.day,winner:r.winner,ranking:finished?r.result||null:null,isJudge,me:me?.id||null,
+  const result={id:r.id,demo:r.demo,round:r.round||1,phase:r.phase,phaseLabel:PHASES[r.phase],day:r.day,winner:r.winner,ranking:finished?r.result||null:null,isJudge,me:me?.id||null,
     players:r.players.map(p=>({id:p.id,name:p.name,alive:p.alive,revealed:p.revealed,role:isJudge||finished||p.id===me?.id||(me?.role==='wolf'&&p.role==='wolf')||p.revealed?p.role:null,acted:(isJudge||r.phase==='vote'||p.id===me?.id)&&r.actions[r.phase]?.[p.id]!==undefined})),
     logs:r.logs.filter(l=>isJudge||!l.private),eligible:r.players.filter(p=>(isJudge||p.id===me?.id)&&eligible(r,p)).map(p=>p.id),shooter:r.shooter||null};
   if(isJudge||me?.role==='witch'){result.potions=r.potions;result.knife=r.phase==='witch'&&r.potions.save?r.night.knife:null;}
