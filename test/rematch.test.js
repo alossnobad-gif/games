@@ -79,13 +79,13 @@ test('12 real players finish two rounds in one room; room scope, permissions and
     throw new Error('full game did not finish');
   }
   await command('start',{round:1});await command('rematch',{round:1},room.token,400);
-  const first=await finish();assert.equal(first.ranking.counted,true);assert.equal(first.winner,'好人阵营');
+  const first=await finish();assert.equal(first.ranking.counted,true);assert.equal(first.winner,'好人阵营');assert.equal(first.voteRecords.length,4);assert.equal(first.settings.publicVoteRecords,true);
   const totals=await request('/leaderboard');assert.equal(totals.games,1);assert.equal(totals.rows.length,12);
   await request(`/leaderboard?room=${room.id}`,null,null,403);
   assert.deepEqual(await request(`/leaderboard?room=${room.id}`,null,players[0].token),totals);
   await command('rematch',{round:1},players[0].token,403);
   await command('rematch',{round:1});
-  const lobby=await read();assert.equal(lobby.round,2);assert.equal(lobby.phase,'lobby');assert.ok(lobby.players.every(p=>p.role===null));
+  const lobby=await read();assert.equal(lobby.round,2);assert.equal(lobby.phase,'lobby');assert.deepEqual(lobby.voteRecords,[]);assert.equal(lobby.settings.publicVoteRecords,true);assert.ok(lobby.players.every(p=>p.role===null));
   assert.deepEqual(await request('/leaderboard'),totals);
   assert.equal((await request(`/rooms/${room.id}`,null,players[0].token)).me,1);
   await command('start',{round:1},room.token,409); // Delayed request from prior round.
@@ -93,7 +93,8 @@ test('12 real players finish two rounds in one room; room scope, permissions and
   await command('start',{round:2});assert.equal((await request(`/rooms/${room.id}`,null,players[0].token)).round,2);
   assert.deepEqual(await request('/leaderboard'),totals);
   await finish();const two=await request('/leaderboard');assert.equal(two.games,2);assert.ok(two.rows.every(p=>p.games===2));
-  await stop();await boot();assert.deepEqual(await request('/leaderboard'),two);
+  const records=(await read()).voteRecords;assert.equal(records.length,4);
+  await stop();await boot();assert.deepEqual((await read()).voteRecords,records);assert.deepEqual(await request('/leaderboard'),two);
   assert.deepEqual(await request(`/leaderboard?room=${room.id}`,null,room.token),two);
   await command('rematch',{round:2});assert.equal((await read()).round,3);
   assert.deepEqual(await request('/leaderboard'),two);

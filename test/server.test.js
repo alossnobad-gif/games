@@ -24,6 +24,9 @@ test('prebuilt release runs without node_modules, reports SHA and accepts an ind
   for(let i=0;i<60;i++){try{health=await fetch(base+'/api/health');if(health.ok)break;}catch{}await new Promise(resolve=>setTimeout(resolve,50));}
   assert.ok(health?.ok,'release server started');assert.deepEqual(await health.json(),{ok:true,version:sha});
   assert.ok((await(await fetch(base)).text()).includes('月隐镇'));
+  for(const body of [{publicVoteRecords:'false'},{rulesetId:'guardian'}]){const invalid=await fetch(base+'/api/rooms',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});assert.equal(invalid.status,400);}
+  const disabled=await(await fetch(base+'/api/rooms',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({publicVoteRecords:false})})).json();
+  const disabledState=await(await fetch(base+`/api/rooms/${disabled.id}`,{headers:{'X-Moonveil-Token':disabled.token}})).json();assert.equal(disabledState.settings.publicVoteRecords,false);
   const room=await(await fetch(base+'/api/rooms',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({demo:true})})).json();
   const headers={'Content-Type':'application/json','X-Moonveil-Token':room.token,Authorization:'Basic proxy-credential'};
   const started=await fetch(base+`/api/rooms/${room.id}/command`,{method:'POST',headers,body:JSON.stringify({command:'start'})});assert.equal(started.status,200);

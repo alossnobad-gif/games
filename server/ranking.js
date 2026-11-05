@@ -1,9 +1,10 @@
-const roles={wolf:'狼王',seer:'神眼预言家',witch:'灵药女巫',hunter:'神枪猎人',idiot:'不屈白痴',villager:'平民之光'};
+import { ROLE_DEFINITIONS } from './rules.js';
+const roles=Object.fromEntries(Object.entries(ROLE_DEFINITIONS).filter(([,role])=>role.awardTitle).map(([id,role])=>[id,role.awardTitle]));
 export function settle(room){
   if(room.phase!=='end'||room.result)return;
   const counted=room.scoringVersion===1&&!room.demo&&!room.unranked&&room.players.length===12&&room.players.every(p=>p.profileId)&&new Set(room.players.map(p=>p.profileId)).size===12;
   room.result={counted,players:counted?room.players.map(p=>{
-    const won=(p.role==='wolf')===(room.winner==='狼人阵营');
+    const won=(ROLE_DEFINITIONS[p.role]?.team==='wolf')===(room.winner==='狼人阵营');
     const bonus=Math.max(-3,Math.min(3,room.performance[p.id]||0));
     return {profileId:p.profileId,name:p.name,seat:p.id,role:p.role,won,bonus,points:3+(won?7:0)+bonus};
   }):[]};

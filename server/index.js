@@ -31,7 +31,8 @@ const server=http.createServer(async(req,res)=>{
         if(url.pathname==='/api/rooms'){
           // Bound room count and persistent storage for a small single-process server.
           if(Object.keys(rooms).length>=200)return reply(res,429,{error:'房间数量已达上限，请联系管理员'});
-          let r=createRoom(Boolean(b.demo));while(rooms[r.id])r=createRoom(Boolean(b.demo));rooms[r.id]=r;save();return reply(res,201,{id:r.id,token:r.judge});
+          const options={publicVoteRecords:b.publicVoteRecords,rulesetId:b.rulesetId};
+          let r=createRoom(Boolean(b.demo),options);while(rooms[r.id])r=createRoom(Boolean(b.demo),options);rooms[r.id]=r;save();return reply(res,201,{id:r.id,token:r.judge});
         }
         const match=url.pathname.match(/^\/api\/rooms\/(\d{6})\/(join|command)$/);
         if(!match)return reply(res,404,{error:'接口不存在'});
